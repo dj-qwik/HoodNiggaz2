@@ -461,7 +461,7 @@ scene.add(sun); scene.add(sun.target);
 // high one at chest height you have to duck (or dive) under. You can't do both at once, so where
 // the two arrive together, you move. From 30 s in, segments start
 // dropping out one at a time, at random, until only two are left.
-const PLAT_Y = 0, PLAT_R = 12.5, HUB_R = 2.1, SEGS = 8, SEG_GAP = 0.5, SEG_T = 0.56, SLIME_Y = -16, TIME_LIMIT = 180;
+const PLAT_Y = 0, PLAT_R = 15, HUB_R = 2.1, SEGS = 8, SEG_GAP = 0.5, SEG_T = 0.56, SLIME_Y = -16, TIME_LIMIT = 180;
 const SEG_WARN = 2.6, FIRST_FALL = 30, FALL_EVERY = 13, SEGS_LEFT = 2;
 const SEG_COLORS = [0xa760f0, 0x4ea6ff, 0xffc63a, 0xff74b4, 0x4fd59b, 0xff8f45, 0x47d4e6, 0xc6e84a];
 // the bars: height of the centre line, thickness, reach, and how fast they turn (rad/s, start to
@@ -566,30 +566,48 @@ const goldTrim = new THREE.MeshStandardMaterial({ color: 0xffc83a, metalness: 1,
   const ring = new THREE.Mesh(new THREE.TorusGeometry(HUB_R + 0.12, 0.14, 12, 64), goldTrim);
   ring.rotation.x = Math.PI / 2; ring.position.y = PLAT_Y - 0.25; scene.add(ring);
 }
-function makeBar(rad, cA, cB, capCol, h) {
+// Both bars are giant glass pipes, like the one in the victory dance: a long clear tube with a smoky
+// streak of residue inside, and a glowing bulb on each end that puffs a little smoke.
+const PIPE_GLASS = { color: 0xdff2ff, roughness: 0.03, clearcoat: 1, clearcoatRoughness: 0.02, transparent: true, depthWrite: false };
+function makeBar(rad, h) {
   const g = new THREE.Group(); g.position.y = h;
-  const A = new THREE.Color(cA), B = new THREE.Color(cB);
-  const geo = stripeCols(new THREE.CylinderGeometry(rad, rad, BAR_LEN * 2, 32, 96), (x, y) => (Math.floor(y / 1.1 + 100) % 2 ? A : B));
-  geo.rotateZ(Math.PI / 2);   // lie along x
-  const mat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.28, clearcoat: 0.8 });
-  const bar = new THREE.Mesh(geo, mat); bar.castShadow = true; g.add(bar);
-  const capMat = new THREE.MeshPhysicalMaterial({ color: capCol, roughness: 0.25, clearcoat: 0.9 });
-  [-1, 1].forEach(s => { const cap = new THREE.Mesh(new THREE.SphereGeometry(rad * 1.45, 28, 20), capMat); cap.position.x = s * BAR_LEN; cap.castShadow = true; g.add(cap); });
-  const collar = new THREE.Mesh(new THREE.CylinderGeometry(HUB_R + 0.2, HUB_R + 0.2, rad * 2.6, 48), capMat); collar.castShadow = true; g.add(collar);
+  const glass = new THREE.MeshPhysicalMaterial({ ...PIPE_GLASS, opacity: 0.5 }); glass.userData.op = 0.5;
+  const tube = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, BAR_LEN * 2, 40, 1, true), glass);
+  tube.rotation.z = Math.PI / 2; tube.renderOrder = 2; tube.castShadow = true; g.add(tube);   // its shadow on the floor helps you time the jump
+  // the residue: a thin, cloudy brown core with darker patches, so the bar is easy to see
+  const res = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.5, transparent: true, opacity: 0.88, depthWrite: false }); res.userData.op = 0.88;
+  const core = new THREE.Mesh(stripeCols(new THREE.CylinderGeometry(rad * 0.7, rad * 0.7, BAR_LEN * 2 - 0.6, 20, 120), (x, y) => {
+    const n = Math.sin(y * 1.7) * 0.5 + Math.sin(y * 4.3 + 1) * 0.3; return new THREE.Color(n > 0.25 ? 0x4a2c16 : 0x8a5e34);
+  }), res);
+  core.rotation.z = Math.PI / 2; core.renderOrder = 1; g.add(core);
+  // a bright shine along the top of the glass
+  const shineM = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false }); shineM.userData.op = 0.85;
+  [[0.86, 0.32, 0.05], [0.55, -0.72, 0.035], [-0.6, 0.7, 0.03]].forEach(([y, z, w]) => {
+    const shine = new THREE.Mesh(new THREE.BoxGeometry(BAR_LEN * 2 - 0.8, w, w), shineM);
+    shine.position.set(0, rad * y, rad * z); shine.renderOrder = 3; g.add(shine);
+  });
+  // a bulb at each end, with a glowing ember inside
+  const bulbM = new THREE.MeshPhysicalMaterial({ ...PIPE_GLASS, opacity: 0.55, emissive: 0xff6a1a, emissiveIntensity: 0.18 }); bulbM.userData.op = 0.55;
+  const emberM = new THREE.MeshStandardMaterial({ color: 0x2a1a12, emissive: 0xff5a10, emissiveIntensity: 1.2, roughness: 0.8 });
+  const bulbs = [];
+  [-1, 1].forEach(sd => {
+    const x = sd * (BAR_LEN + 0.55);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad * 1.5, 0.5, 28, 1, true), glass); neck.rotation.z = -sd * Math.PI / 2; neck.position.x = sd * (BAR_LEN - 0.05); neck.renderOrder = 2; g.add(neck);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(rad * 2.4, 36, 26), bulbM); bulb.position.x = x; bulb.renderOrder = 2; bulb.castShadow = true; g.add(bulb);
+    const hole = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.5, rad * 0.62, rad * 1.4, 20, 1, true), glass); hole.position.set(x, rad * 2.3, 0); hole.renderOrder = 2; g.add(hole);
+    const ember = new THREE.Mesh(new THREE.SphereGeometry(rad * 1.1, 18, 12), emberM); ember.position.set(x, -rad * 1.1, 0); ember.scale.y = 0.5; g.add(ember);
+    bulbs.push({ bulb, top: new THREE.Vector3(x, rad * 2.9, 0), t: Math.random() });
+  });
+  // a smoky glass grommet where it goes through the tower
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(HUB_R + 0.2, HUB_R + 0.2, rad * 2.6, 48), new THREE.MeshPhysicalMaterial({ color: 0x5b4636, roughness: 0.15, clearcoat: 1 }));
+  collar.castShadow = true; g.add(collar);
   scene.add(g);
-  return { g, mats: [mat, capMat] };
+  return { g, mats: [glass, res, shineM, bulbM], bulbs, emberM };
 }
-// the low bar is a giant push broom: a striped padded bar with a fringe of straw underneath
-bars.low = makeBar(LOW_R, 0xff4f9a, 0xfff3f8, 0xffd23f, LOW_H);
-{
-  const straw = new THREE.Color(0xf2c14e), dark = new THREE.Color(0xd99a2b);
-  const geo = stripeCols(new THREE.BoxGeometry(BAR_LEN * 2 - 0.4, 0.28, 0.4, 200, 1, 1), x => (Math.floor(x / 0.13 + 1000) % 3 ? straw : dark));
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
-  const bristles = new THREE.Mesh(geo, m); bristles.position.y = -LOW_R + 0.01; bristles.castShadow = true;
-  bars.low.g.add(bristles); bars.low.mats.push(m);
-}
+// the low bar: jump it
+bars.low = makeBar(LOW_R, LOW_H);
 // the high bar wears a giant 8-ball: it sits on top of the tower and turns with it
-bars.high = makeBar(HIGH_R, 0x7c4dff, 0xf4efff, 0xff74b4, HIGH_H);
+bars.high = makeBar(HIGH_R, HIGH_H);
 const BALL_R = 2.6, BALL_Y = HUB_TOP + 2.25;   // world height of the ball's center
 {
   const top = new THREE.Group(); top.position.y = HUB_TOP - HIGH_H;
@@ -624,6 +642,18 @@ function updateBars(dt) {
   else if (state === 'over') { bars.wL = bars.wH = 0; }                          // the machine stops for the winner
   else { bars.aL = LOW_A0; bars.aH = HIGH_A0; bars.wL = bars.wH = 0; }
   bars.low.g.rotation.y = -bars.aL; bars.high.g.rotation.y = -bars.aH;
+  pipeSmoke(dt);
+}
+const _pw = new THREE.Vector3();
+function pipeSmoke(dt) {
+  if (!dt) return;
+  [bars.low, bars.high].forEach(b => {
+    b.emberM.emissiveIntensity = 1 + Math.sin(clock * 5.3) * 0.25 + Math.sin(clock * 13.1) * 0.15;
+    b.bulbs.forEach(B => {
+      B.t -= dt;
+      if (B.t <= 0) { B.t = 0.35 + Math.random() * 0.5; _pw.copy(B.top); b.g.localToWorld(_pw); puffSmoke(_pw, 1, 0.5, 1.1, 0.75); }
+    });
+  });
 }
 // a bar that a camera is sitting in goes see-through in that view only
 function fadeBars(v) {
@@ -631,7 +661,7 @@ function fadeBars(v) {
   [[bars.low, bars.aL, LOW_H, LOW_R], [bars.high, bars.aH, HIGH_H, HIGH_R]].forEach(([b, a, h, r]) => {
     const c = Math.cos(a), s = Math.sin(a), along = Math.max(-BAR_LEN, Math.min(BAR_LEN, C.x * c + C.z * s));
     const near = state !== 'lobby' && Math.hypot(C.x - along * c, C.y - h, C.z - along * s) < r + 1.4;
-    b.mats.forEach(m => { m.transparent = near; m.opacity = near ? 0.28 : 1; m.depthWrite = !near; });
+    b.mats.forEach(m => { const base = m.userData.op ?? 1; m.opacity = near ? base * 0.35 : base; });
   });
 }
 
@@ -1683,7 +1713,7 @@ function makePlayer(i, kind, pad) {
 
 // ten spots, all in the middle of a wedge (never on a gap): one round the outside of each wedge,
 // then two more nearer the middle. The order spreads out whoever is in a smaller round.
-const SPAWN_SPOTS = [[0, 8.6], [4, 8.6], [2, 8.6], [6, 8.6], [1, 8.6], [5, 8.6], [3, 8.6], [7, 8.6], [3, 5.2], [7, 5.2]];
+const SPAWN_SPOTS = [[0, 10.6], [4, 10.6], [2, 10.6], [6, 10.6], [1, 10.6], [5, 10.6], [3, 10.6], [7, 10.6], [3, 6.3], [7, 6.3]];
 function spawnPoint(i) {
   const [w, r] = SPAWN_SPOTS[i % SPAWN_SPOTS.length], a = (w + 0.5) / SEGS * Math.PI * 2;
   return [Math.cos(a) * r, Math.sin(a) * r];
@@ -2225,7 +2255,7 @@ function botInput(p) {
 const SMOKE = [];
 {
   const g = new THREE.SphereGeometry(0.2, 12, 10);
-  for (let i = 0; i < 40; i++) { const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xf2f2f6, transparent: true, opacity: 0, depthWrite: false, roughness: 1 })); m.visible = false; scene.add(m); SMOKE.push({ m, vx: 0, vy: 0, vz: 0, life: 0, max: 1 }); }
+  for (let i = 0; i < 90; i++) { const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xf2f2f6, transparent: true, opacity: 0, depthWrite: false, roughness: 1 })); m.visible = false; scene.add(m); SMOKE.push({ m, vx: 0, vy: 0, vz: 0, life: 0, max: 1 }); }
 }
 let smokeI = 0;
 function puffSmoke(at, n, spread, rise, size) {

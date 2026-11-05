@@ -23,7 +23,7 @@ class Obj { constructor() { this.userData = {}; this.quaternion = { setFromUnitV
   getWorldPosition(v) { v.set(0, 0, 0); return this.localToWorld(v); } clone() { const o = new this.constructor(this.geometry, this.material); return o; } }
 class Mesh extends Obj { constructor(g, m) { super(); this.geometry = g; this.material = m; } }
 class Inst extends Mesh { constructor(g, m, n) { super(g, m); this.count = n; this.instanceMatrix = { needsUpdate: false, setUsage() {} }; this.instanceColor = { needsUpdate: false }; } setMatrixAt() {} setColorAt() {} }
-class Mat { constructor(o = {}) { Object.assign(this, o); this.color = new Color(typeof o.color === 'number' ? o.color : 0xffffff); } clone() { const m = new Mat({}); Object.assign(m, this); m.color = this.color.clone(); return m; } }
+class Mat { constructor(o = {}) { this.userData = {}; Object.assign(this, o); this.color = new Color(typeof o.color === 'number' ? o.color : 0xffffff); } clone() { const m = new Mat({}); Object.assign(m, this); m.color = this.color.clone(); return m; } }
 const attr = () => ({ count: 0, array: new Float32Array(0), getX: () => 0, getY: () => 0, getZ: () => 0, setX() {}, setY() {}, setZ() {}, setXYZ() {}, needsUpdate: false });
 class Geo { constructor() { this.attributes = { position: attr(), normal: attr() }; } setIndex() {} rotateX() { return this; } rotateY() { return this; } rotateZ() { return this; } scale() { return this; } translate() { return this; } computeVertexNormals() {} setAttribute(k, v) { this.attributes[k] = v; } }
 class Light extends Obj { constructor() { super(); this.intensity = 1; this.target = new Obj(); this.shadow = { mapSize: new V2(2048, 2048), camera: { updateProjectionMatrix() {} }, map: null }; } }

@@ -1,8 +1,8 @@
 # Hood Niggas 2
 
 An online party game for 5 to 10 players, each on their own device. Everyone stands on a round
-platform high above a pit. A low bar (a giant broom) sweeps round and gets faster and faster: jump
-it. A slow high bar at chest height knocks over anyone standing: duck or dive under it. From 30
+platform high above a pit. A low bar (a giant glass pipe) sweeps round and gets faster and faster:
+jump it. A slow high pipe at chest height knocks over anyone standing: duck or dive under it. From 30
 seconds in, a wedge of the platform flashes and drops out every 13 seconds until only two are left.
 Shots freeze people for half a second. Last one standing wins.
 
