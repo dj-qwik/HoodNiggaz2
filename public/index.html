@@ -588,22 +588,31 @@ bars.low = makeBar(LOW_R, 0xff4f9a, 0xfff3f8, 0xffd23f, LOW_H);
   const bristles = new THREE.Mesh(geo, m); bristles.position.y = -LOW_R + 0.01; bristles.castShadow = true;
   bars.low.g.add(bristles); bars.low.mats.push(m);
 }
-// the high bar wears the crown: it sits on top of the tower and turns with it
+// the high bar wears a giant 8-ball: it sits on top of the tower and turns with it
 bars.high = makeBar(HIGH_R, 0x7c4dff, 0xf4efff, 0xff74b4, HIGH_H);
+const BALL_R = 2.6, BALL_Y = HUB_TOP + 2.25;   // world height of the ball's center
 {
-  const crown = new THREE.Group(); crown.position.y = HUB_TOP - HIGH_H;
-  const gold = goldTrim.clone(); gold.side = THREE.DoubleSide;
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(HUB_R + 0.42, HUB_R + 0.26, 1.0, 48, 1, true), gold); band.position.y = 0.5; band.castShadow = true; crown.add(band);
-  const velvet = new THREE.Mesh(new THREE.SphereGeometry(HUB_R + 0.18, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0xc8173f, roughness: 0.6, clearcoat: 0.2 }));
-  velvet.scale.y = 0.7; velvet.position.y = 0.05; crown.add(velvet);
-  for (let k = 0; k < 8; k++) {
-    const a = k / 8 * Math.PI * 2, R = HUB_R + 0.36;
-    const pt = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.9, 20), gold); pt.position.set(Math.cos(a) * R, 1.4, Math.sin(a) * R); pt.castShadow = true; crown.add(pt);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.17, 18, 14), gold); ball.position.set(Math.cos(a) * R, 1.92, Math.sin(a) * R); crown.add(ball);
-    const gem = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 14), new THREE.MeshPhysicalMaterial({ color: SEG_COLORS[k], roughness: 0.05, clearcoat: 1, emissive: SEG_COLORS[k], emissiveIntensity: 0.2 }));
-    gem.position.set(Math.cos(a + Math.PI / 8) * (HUB_R + 0.4), 0.5, Math.sin(a + Math.PI / 8) * (HUB_R + 0.4)); gem.scale.set(1, 1.2, 1); crown.add(gem);
-  }
-  bars.high.g.add(crown);
+  const top = new THREE.Group(); top.position.y = HUB_TOP - HIGH_H;
+  // the ball's skin: glossy black with a white disc and a black 8 on each side
+  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 512;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#0d0b10'; g.fillRect(0, 0, 1024, 512);
+  [256, 768].forEach(u => {
+    g.fillStyle = '#fbf8f2'; g.beginPath(); g.ellipse(u, 256, 92, 92, 0, 0, Math.PI * 2); g.fill();
+    g.save(); g.translate(u, 262); g.scale(0.82, 1);
+    g.fillStyle = '#0d0b10'; g.font = 'bold 150px "Arial Black", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('8', 0, 0);
+    g.restore();
+  });
+  const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 8;
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 64, 48), new THREE.MeshPhysicalMaterial({ map: tex, roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.04 }));
+  ball.position.y = BALL_Y - HUB_TOP; ball.rotation.x = -0.32;   // tipped back a little so the 8 looks up at the players
+  ball.castShadow = true; top.add(ball);
+  // it rests in a ring of green pool-table felt with a polished wood rim
+  const felt = new THREE.Mesh(new THREE.TorusGeometry(HUB_R - 0.05, 0.42, 20, 64), new THREE.MeshStandardMaterial({ color: 0x168a4a, roughness: 0.9 }));
+  felt.rotation.x = Math.PI / 2; felt.position.y = 0.22; felt.castShadow = true; top.add(felt);
+  const wood = new THREE.Mesh(new THREE.TorusGeometry(HUB_R + 0.4, 0.2, 16, 64), new THREE.MeshPhysicalMaterial({ color: 0x6b3a1c, roughness: 0.3, clearcoat: 0.8 }));
+  wood.rotation.x = Math.PI / 2; wood.position.y = 0.12; wood.castShadow = true; top.add(wood);
+  bars.high.g.add(top);
 }
 // where the bars point: the angle and turning speed come from the round's clock, so every screen
 // in an online room agrees on them without sending anything extra
@@ -1960,6 +1969,7 @@ function takeHit(q, dx, dz, from) {
 }
 // does a bar block a bullet at this point?
 function barBlocks(x, y, z) {
+  if (Math.hypot(x, y - BALL_Y, z) < BALL_R) return true;   // the 8-ball on top of the tower
   for (const [a, h, rad] of [[bars.aL, LOW_H, LOW_R], [bars.aH, HIGH_H, HIGH_R]]) {
     if (Math.abs(y - h) > rad + 0.08) continue;
     const c = Math.cos(a), s = Math.sin(a);
@@ -2639,7 +2649,9 @@ function constrainCam(v, pivot, lookAt) {
   if (C.y < gy) { C.y = gy; moved = true; }
   // the tower in the middle
   const hr = Math.hypot(C.x, C.z), HR = HUB_R + 0.8;
-  if (C.y < HUB_TOP + 2.2 && hr < HR) { const k = HR / Math.max(0.01, hr); C.x = hr > 0.01 ? C.x * k : HR; C.z *= hr > 0.01 ? k : 1; moved = true; }
+  // and the 8-ball on top of it
+  { const dy = C.y - BALL_Y, dd = Math.hypot(C.x, dy, C.z), BR = BALL_R + 0.7; if (dd < BR) { const k = BR / Math.max(0.01, dd); C.x *= k; C.z *= k; C.y = BALL_Y + dy * k; moved = true; } }
+  if (C.y < HUB_TOP + 0.5 && hr < HR) { const k = HR / Math.max(0.01, hr); C.x = hr > 0.01 ? C.x * k : HR; C.z *= hr > 0.01 ? k : 1; moved = true; }
   // the platform: never sit inside a segment; go to whichever side the pivot is on
   if (C.y > PLAT_Y - SEG_T - 0.3 && C.y < PLAT_Y + 0.3 && solidAt(C.x, C.z) >= 0) { C.y = P.y >= PLAT_Y ? PLAT_Y + 0.3 : PLAT_Y - SEG_T - 0.3; moved = true; }
   if (moved) v.cam.lookAt(lookAt);
