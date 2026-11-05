@@ -1448,9 +1448,221 @@ function makeChar(def) {
   stars.visible = false; sq.add(stars);
   root.visible = false; scene.add(root);
   const props = makeProps(sq);
+  props.wad = makeWad(); props.wad.position.set(0.07, -0.24, 0.05); props.wad.scale.setScalar(1.7); arms[1].add(props.wad);
   return { root, tilt, sq, arms, feet, gun, handGun, stars, props };
 }
+// a fat stack of bills with a rubber band round it
+const BILL_TEX = (() => {
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 58; const g = cv.getContext('2d');
+  g.fillStyle = '#6aa85e'; g.fillRect(0, 0, 128, 58);
+  g.strokeStyle = '#d9efcf'; g.lineWidth = 4; g.strokeRect(5, 5, 118, 48);
+  g.fillStyle = '#3f7a3c'; g.beginPath(); g.ellipse(64, 29, 17, 19, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#e8f6de'; g.font = 'bold 26px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('$', 64, 31);
+  g.fillStyle = '#2f5e2c'; g.font = 'bold 14px Arial, sans-serif'; g.fillText('100', 22, 16); g.fillText('100', 106, 44);
+  return new THREE.CanvasTexture(cv);
+})();
+const billMat = new THREE.MeshStandardMaterial({ map: BILL_TEX, roughness: 0.75, side: THREE.DoubleSide });
+function makeWad() {
+  const w = new THREE.Group();
+  const stack = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.07, 0.1), [
+    new THREE.MeshStandardMaterial({ color: 0xeaf3e0, roughness: 0.8 }), new THREE.MeshStandardMaterial({ color: 0xeaf3e0, roughness: 0.8 }),
+    billMat, billMat, new THREE.MeshStandardMaterial({ color: 0xeaf3e0, roughness: 0.8 }), new THREE.MeshStandardMaterial({ color: 0xeaf3e0, roughness: 0.8 })]);
+  w.add(stack);
+  const band = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.075, 0.105), new THREE.MeshStandardMaterial({ color: 0xc8463c, roughness: 0.5 })); w.add(band);
+  w.rotation.set(0, Math.PI / 2, -0.3); w.traverse(o => { o.castShadow = true; }); w.visible = false;
+  return w;
+}
 const CHARS = PLAYER_DEFS.map(makeChar);
+
+/* ----- the dancer who shows up for the winner ----- */
+// Same glossy bean as everyone else: a big curly puff with a scrunchie, gold hoops, lashes, pink lips,
+// a pink tube top, denim shorts, gold bangles and pink sneakers.
+function makeGirl() {
+  const root = new THREE.Group(), tilt = new THREE.Group(), sq = new THREE.Group();
+  const scaler = new THREE.Group(); scaler.scale.setScalar(CHAR_SCALE * 0.96);
+  tilt.position.y = PIVOT; sq.position.y = -PIVOT; root.add(scaler); scaler.add(tilt); tilt.add(sq);
+  const torso = new THREE.Group(); torso.position.y = LIFT; torso.scale.set(0.95, TORSO_SY * 1.02, 0.95); sq.add(torso);
+  const skin = new THREE.MeshPhysicalMaterial({ color: 0x8a5436, roughness: 0.32, clearcoat: 0.9, clearcoatRoughness: 0.16, side: THREE.DoubleSide });
+  const pink = new THREE.MeshPhysicalMaterial({ color: 0xff3d8b, roughness: 0.3, clearcoat: 0.9, side: THREE.DoubleSide });
+  const denim = new THREE.MeshStandardMaterial({ color: 0x4f7fd0, roughness: 0.6, side: THREE.DoubleSide });
+  const body = new THREE.Mesh(BODY_GEO, skin); body.castShadow = true; torso.add(body);
+  const shorts = new THREE.Mesh(PANTS_GEO, denim); shorts.castShadow = true; torso.add(shorts);
+  torso.add(new THREE.Mesh(bandGeo(PANTS_Y - 0.01, 0.235, 1.03), denim));
+  const belt = new THREE.Mesh(HEM_GEO, goldMat); belt.rotation.x = Math.PI / 2; belt.position.y = 0.232; belt.scale.set(radAt(0.232) * 1.04, radAt(0.232) * 1.04, 1.2); torso.add(belt);
+  const top = new THREE.Mesh(bandGeo(0.3, 0.47, 1.035), pink); top.castShadow = true; torso.add(top);
+  [0.3, 0.47].forEach(y => { const h = new THREE.Mesh(HEM_GEO, pink); h.rotation.x = Math.PI / 2; h.position.y = y; h.scale.set(radAt(y) * 1.05, radAt(y) * 1.05, 1.3); torso.add(h); });
+  // hair: a smooth cap and a big curly puff up top, tied with a scrunchie
+  const hairM = new THREE.MeshPhysicalMaterial({ color: 0x1a110d, roughness: 0.55, clearcoat: 0.3 });
+  const cap = new THREE.Mesh(bandGeo(0.76, 1.0, 1.03), hairM); torso.add(cap);
+  const puff = new THREE.Group(); puff.position.set(0, 1.12, -0.06); torso.add(puff);
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.3, 24, 18), hairM); core.castShadow = true; puff.add(core);
+  const CURL = new THREE.SphereGeometry(0.1, 12, 10);
+  for (let k = 0; k < 46; k++) {
+    const yy = 1 - (k + 0.5) / 46 * 1.6, rr = Math.sqrt(Math.max(0, 1 - yy * yy)), a = k * 2.4;
+    const c = new THREE.Mesh(CURL, hairM); c.position.set(Math.cos(a) * rr * 0.29, yy * 0.29, Math.sin(a) * rr * 0.29); puff.add(c);
+  }
+  const scr = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 10, 28), pink); scr.rotation.x = Math.PI / 2; scr.position.y = -0.2; puff.add(scr);
+  // face: the same big eyes, with lashes; glossy pink lips
+  const lashM = new THREE.MeshBasicMaterial({ color: 0x120a08 });
+  for (const sd of [-1, 1]) {
+    const ey = 0.64, ex = 0.15, ez = Math.sqrt(radAt(ey) ** 2 - ex * ex);
+    const sc = new THREE.Mesh(EYE_GEO, scleraMat); sc.scale.set(1.55, 1.75, 0.5); sc.position.set(sd * ex, ey, ez - 0.012); torso.add(sc);
+    const e = new THREE.Mesh(EYE_GEO, eyeMat); e.scale.set(1.05, 1.32, 0.55); e.position.set(sd * ex, ey, ez + 0.004); torso.add(e);
+    const sh = new THREE.Mesh(SHINE_GEO, shineMat); sh.position.set(sd * ex + 0.022, ey + 0.035, ez + 0.03); torso.add(sh);
+    for (let k = 0; k < 3; k++) {
+      const l = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.06, 0.012), lashM);
+      const ax = sd * (ex + 0.03 + k * 0.035);
+      l.position.set(ax, ey + 0.1 - k * 0.022, ez - 0.01 - k * 0.012); l.rotation.z = -sd * (0.5 + k * 0.35); torso.add(l);
+    }
+    const cy = 0.555, cx = 0.28, cz = Math.sqrt(radAt(cy) ** 2 - cx * cx);
+    const ch = new THREE.Mesh(new THREE.CircleGeometry(0.065, 16), new THREE.MeshBasicMaterial({ color: 0xff6f9a, transparent: true, opacity: 0.4, depthWrite: false }));
+    ch.position.set(sd * cx * 1.012, cy, cz * 1.012); ch.rotation.y = Math.atan2(sd * cx, cz); ch.scale.set(1.25, 0.8, 1); torso.add(ch);
+    // big gold hoops
+    const hoop = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.013, 8, 28), goldMat);
+    hoop.position.set(sd * (radAt(0.5) + 0.02), 0.47, 0); hoop.rotation.y = Math.PI / 2; torso.add(hoop);
+  }
+  const mz = radAt(0.51);
+  const lips = new THREE.Mesh(new THREE.CircleGeometry(0.07, 24, Math.PI, Math.PI), new THREE.MeshBasicMaterial({ color: 0xd8186a, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  lips.position.set(0, 0.535, mz + 0.016); lips.scale.set(1, 0.8, 1); torso.add(lips);
+  const arms = [], feet = [];
+  const legG = new THREE.CylinderGeometry(0.08, 0.095, LIFT + 0.05, 16), shoe = new THREE.MeshPhysicalMaterial({ color: 0xff5fa8, roughness: 0.3, clearcoat: 0.7 });
+  for (const sd of [-1, 1]) {
+    const piv = new THREE.Group(); piv.position.set(sd * 0.45, LIFT + 0.46 * TORSO_SY, 0);
+    const a = new THREE.Mesh(LIMB_GEO, skin); a.scale.set(0.1, 0.17, 0.1); a.position.set(sd * 0.06, -0.09, 0); a.castShadow = true; piv.add(a);
+    const bangle = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 8, 20), goldMat); bangle.rotation.x = Math.PI / 2; bangle.position.set(sd * 0.065, -0.15, 0); piv.add(bangle);
+    sq.add(piv); arms.push(piv);
+    const hip = new THREE.Group(); hip.position.set(sd * 0.16, LIFT + 0.08, 0);
+    const leg = new THREE.Mesh(legG, skin); leg.position.y = -(LIFT + 0.08) / 2 + 0.02; leg.castShadow = true; hip.add(leg);
+    const f = new THREE.Mesh(LIMB_GEO, shoe); f.scale.set(0.17, 0.11, 0.24); f.position.set(0, -(LIFT + 0.08) + 0.05, 0.05); f.castShadow = true; hip.add(f);
+    sq.add(hip); feet.push(hip);
+  }
+  root.visible = false; scene.add(root);
+  return { root, tilt, sq, arms, feet, puff, shown: false, at: 0, pos: new THREE.Vector3(), face: 0 };
+}
+const GIRL = makeGirl();
+
+/* ----- making it rain ----- */
+const BILLS = [];
+{
+  const g = new THREE.PlaneGeometry(0.27, 0.12);
+  for (let i = 0; i < 160; i++) { const m = new THREE.Mesh(g, billMat); m.visible = false; m.castShadow = true; scene.add(m); BILLS.push({ m, vx: 0, vy: 0, vz: 0, ph: 0, w: 0, landed: false, life: 0 }); }
+}
+let billI = 0, billStack = 0;
+function throwBill(from, toward) {
+  const B = BILLS[billI++ % BILLS.length];
+  const dx = toward.x - from.x, dz = toward.z - from.z, d = Math.hypot(dx, dz) || 1;
+  const sp = 1.6 + Math.random() * 1.4, side = (Math.random() - 0.5) * 1.6;
+  B.vx = dx / d * sp - dz / d * side; B.vz = dz / d * sp + dx / d * side; B.vy = 2.6 + Math.random() * 1.6;
+  B.ph = Math.random() * 6; B.w = 5 + Math.random() * 5; B.landed = false; B.life = 30;
+  B.m.position.copy(from); B.m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); B.m.visible = true;
+}
+function updateBills(dt, t) {
+  for (const B of BILLS) {
+    if (!B.m.visible || B.landed) continue;
+    // paper: drops slowly, swings side to side and tumbles
+    B.vy = Math.max(-1.3, B.vy - 9 * dt); const drag = Math.exp(-1.6 * dt); B.vx *= drag; B.vz *= drag;
+    const sw = Math.sin(t * B.w + B.ph) * 0.9;
+    B.m.position.x += (B.vx + sw * 0.6) * dt; B.m.position.y += B.vy * dt; B.m.position.z += (B.vz + Math.cos(t * B.w * 0.8 + B.ph) * 0.4) * dt;
+    B.m.rotation.x += dt * (3 + sw * 4); B.m.rotation.y += dt * 2.2; B.m.rotation.z += dt * sw * 3;
+    const bx = B.m.position.x, bz = B.m.position.z, onBall = Math.hypot(bx, bz) < BALL_R * 0.92;
+    const on = onBall || solidAt(bx, bz) >= 0;
+    const floor = (onBall ? ballTop(bx, bz) : PLAT_Y) + 0.012 + (billStack % 9) * 0.002;
+    if (on && B.vy < 0 && B.m.position.y <= floor) {
+      B.landed = true; billStack++; B.m.position.y = floor;
+      // lie flat on the ball's curve, or flat on the floor
+      if (onBall) { _up.set(bx, B.m.position.y - BALL_Y, bz).normalize(); B.m.quaternion.setFromUnitVectors(_zf, _up); B.m.rotateZ(Math.random() * 6); }
+      else B.m.rotation.set(-Math.PI / 2, 0, Math.random() * 6);
+    }
+    if (B.m.position.y < SLIME_Y - 12) B.m.visible = false;
+  }
+}
+function clearBills() { BILLS.forEach(B => { B.m.visible = false; B.landed = false; }); billStack = 0; GIRL.root.visible = false; GIRL.shown = false; STAGE.on = false; }
+// The celebration happens up on top of the 8-ball: the winner on one side of the top, the dancer
+// on the other, both facing the camera. Feet sit right on the ball, wherever the winner was when it ended.
+const STAGE = { on: false, win: new THREE.Vector3(), girl: new THREE.Vector3(), mid: new THREE.Vector3() };
+const ballTop = (x, z) => BALL_Y + Math.sqrt(Math.max(0, BALL_R * BALL_R - x * x - z * z));
+function setStage() {
+  // the winner camera holds its heading, so face the stage the way it will be looking from
+  const fx = Math.sin(mainView.yaw), fz = Math.cos(mainView.yaw), rx = fz, rz = -fx;
+  const put = (v, side) => { const x = rx * side * 0.85 + fx * 0.35, z = rz * side * 0.85 + fz * 0.35; v.set(x, ballTop(x, z) - 0.03, z); };
+  put(STAGE.win, -1); put(STAGE.girl, 1);
+  STAGE.mid.set((STAGE.win.x + STAGE.girl.x) / 2, (STAGE.win.y + STAGE.girl.y) / 2, (STAGE.win.z + STAGE.girl.z) / 2);
+  STAGE.on = true;
+}
+function placeGirl() { if (!STAGE.on) setStage(); GIRL.pos.copy(STAGE.girl); }
+const _g2 = new THREE.Vector3(), _wad = new THREE.Vector3();
+// the winner: pulls the wad out, holds it up and flicks bill after bill at the dancer
+function makeItRain(p, t, dt) {
+  const c = p.ch, P = c.props, PI = Math.PI;
+  if (!STAGE.on) setStage();
+  p.pos.copy(STAGE.win); p.vel.set(0, 0, 0); c.root.position.x = p.pos.x; c.root.position.z = p.pos.z;
+  hideProps(c); c.gun.visible = t < 0.5; c.stars.visible = false;
+  const face = Math.atan2(camera.position.x - p.pos.x, camera.position.z - p.pos.z);
+  const toGirl = GIRL.shown ? Math.atan2(GIRL.pos.x - p.pos.x, GIRL.pos.z - p.pos.z) : face;
+  let yaw = angLerp(face, toGirl, 0.5), aL = -0.25, aR = 0.25, axL = 0, axR = 0, sk = 0, lean = -0.06, y = 0;
+  const beat = Math.sin(t * PI * 3.4);
+  if (t < 0.5) {                                 // reaches down to the waistband...
+    const k = t / 0.5; axR = 0.4 * k; aR = 0.2; lean = 0.08 * k;
+  } else if (t < 0.9) {                           // ...and comes up with the stack
+    const k = (t - 0.5) / 0.4; P.wad.visible = true; axR = 0.4 - 1.9 * k; aR = 0.2 + 0.2 * k;
+  } else {
+    P.wad.visible = true;
+    // the flick: a quick snap of the hand, seven times a second
+    const rate = 7, ph = (t * rate) % 1;
+    axR = -1.5 - 0.35 * Math.max(0, 1 - ph * 5); aR = 0.42 + 0.06 * Math.sin(t * 9);
+    if (dt > 0 && Math.floor((t - dt) * rate) !== Math.floor(t * rate)) {
+      c.root.updateMatrixWorld(true); P.wad.getWorldPosition(_wad);
+      _g2.copy(GIRL.shown ? GIRL.pos : p.pos); _g2.y += 1;
+      throwBill(_wad, _g2); if (Math.random() < 0.8) SFX.bill();
+    }
+    // the other hand: hanging loose, swinging with the beat, sometimes up in the air
+    const hype = (t % 6) > 4.6;
+    aL = hype ? -2.6 + Math.sin(t * 10) * 0.2 : -0.35 - Math.max(0, beat) * 0.3; axL = hype ? 0 : -0.2;
+    sk = Math.max(0, beat) * 0.06; lean = -0.1 + Math.max(0, beat) * 0.05;
+  }
+  c.root.position.y = p.pos.y + y; c.root.rotation.y = yaw; p.yaw = p.targetYaw = yaw;
+  c.tilt.rotation.z = Math.sin(t * PI * 1.7) * 0.05; c.tilt.rotation.x = lean;
+  c.arms[0].rotation.z = aL; c.arms[1].rotation.z = aR; c.arms[0].rotation.x = axL; c.arms[1].rotation.x = axR;
+  c.feet[0].rotation.x = 0; c.feet[1].rotation.x = 0;
+  c.sq.scale.set(1 + sk * 0.6, 1 - sk, 1 + sk * 0.6); c.sq.position.y = -PIVOT;
+}
+// the dancer: pops in, then loops hip sways, a spin, dropping it low and a shimmy
+const GIRL_IN = 0.6, GIRL_LOOP = 7;
+function danceGirl(w, t) {
+  const G = GIRL, c = G, PI = Math.PI;
+  if (t < GIRL_IN) { G.root.visible = false; return; }
+  if (!G.shown) {
+    G.shown = true; G.at = t; placeGirl(); G.root.visible = true;
+    _g2.copy(G.pos); _g2.y += 0.8; puffSmoke(_g2, 10, 2.2, 0.8, 0.6); SFX.join();
+  }
+  const k = t - G.at, pop = Math.min(1, k / 0.35), sc = pop < 1 ? Math.sin(pop * PI * 0.5) * (1 + 0.25 * Math.sin(pop * PI)) : 1;
+  G.root.scale.setScalar(sc);
+  const face = Math.atan2(camera.position.x - G.pos.x, camera.position.z - G.pos.z);
+  const toW = Math.atan2(w.pos.x - G.pos.x, w.pos.z - G.pos.z);
+  let yaw = angLerp(face, toW, 0.3), x = 0, y = 0, sway = 0, lean = 0, sk = 0, aL = -2.5, aR = 2.5, axL = 0, axR = 0, kL = 0, kR = 0;
+  const tt = k % GIRL_LOOP, b = t * PI * 3.4;
+  if (tt < 2.4) {                           // hips side to side, hands up, waving
+    sway = Math.sin(b * 0.5) * 0.24; x = Math.sin(b * 0.5) * 0.1; sk = Math.abs(Math.sin(b)) * 0.06;
+    aL = -2.55 + Math.sin(b) * 0.35; aR = 2.55 + Math.sin(b + 1) * 0.35; axL = axR = -0.2;
+  } else if (tt < 3.3) {                    // a spin with the arms out
+    const u = (tt - 2.4) / 0.9; yaw += u * PI * 2; aL = -1.5; aR = 1.5; y = Math.sin(u * PI) * 0.25;
+  } else if (tt < 5.0) {                    // drop it low, bounce, bounce
+    const u = (tt - 3.3) / 1.7, down = Math.min(1, u * 4) * (u > 0.85 ? (1 - u) / 0.15 : 1);
+    sk = 0.32 * down + Math.abs(Math.sin(b)) * 0.08 * down; lean = 0.18 * down;
+    aL = -0.5; aR = 0.5; axL = axR = -0.9 * down; kL = kR = 0;
+  } else {                                  // shimmy and a hair flip
+    const u = (tt - 5.0) / 2.0;
+    sway = Math.sin(b * 2) * 0.08; lean = Math.sin(u * PI * 2) * 0.22; sk = Math.abs(Math.sin(b)) * 0.05;
+    aL = -0.9 + Math.sin(b * 2) * 0.3; aR = 0.9 - Math.sin(b * 2) * 0.3; axL = axR = -0.4;
+  }
+  G.root.position.set(G.pos.x + Math.cos(yaw) * x, G.pos.y + y, G.pos.z - Math.sin(yaw) * x);
+  G.root.rotation.y = yaw;
+  G.tilt.rotation.set(lean, 0, sway);
+  G.arms[0].rotation.set(axL, 0, aL); G.arms[1].rotation.set(axR, 0, aR);
+  G.feet[0].rotation.x = kL; G.feet[1].rotation.x = kR;
+  G.sq.scale.set(1 + sk * 0.6, 1 - sk, 1 + sk * 0.6);
+  G.puff.position.y = 1.12 + Math.sin(b) * 0.03; G.puff.scale.setScalar(1 + Math.abs(Math.sin(b)) * 0.04);
+}
 // whatever the rollers have pulled under is gone: every character is cut off below where they meet
 const GRIND_CLIP = new THREE.Plane(new THREE.Vector3(0, 1, 0), -NIP_Y);
 renderer.localClippingEnabled = true;
@@ -1540,6 +1752,7 @@ const SFX = {
   pour: () => noise(0.5, 0.06, 900),
   flick: () => { noise(0.05, 0.2, 4000, 'highpass'); tone(2400, 0.03, 'square', 0.02); setTimeout(() => noise(0.4, 0.05, 600), 60); },
   exhale: () => { noise(1.1, 0.12, 700); },
+  bill: () => { noise(0.035, 0.05, 3200 + Math.random() * 1200, 'bandpass'); },
   grind: () => { noise(0.2, 0.22, 420); tone(58 + Math.random() * 24, 0.18, 'sawtooth', 0.05, 34); noise(0.08, 0.12, 2400, 'bandpass'); },
   squeak: () => tone(900 + Math.random() * 500, 0.09, 'sine', 0.025, 600),
   motor: level => {   // a steady electric hum from the grinder, louder while it chews
@@ -2305,7 +2518,7 @@ function makeProps(sq) {
 }
 function hideProps(c) {
   const P = c.props; if (!P) return;
-  P.forty.visible = P.pipe.visible = P.lighter.visible = P.stream.visible = P.puddle.visible = false;
+  P.forty.visible = P.pipe.visible = P.lighter.visible = P.stream.visible = P.puddle.visible = false; if (P.wad) P.wad.visible = false;
   c.handGun.visible = false; c.gun.visible = true;
 }
 const DANCE = [1.4, 2.6, 1.4, 3.2, 1.4, 3.8, 1.4];   // seconds per move
@@ -2595,8 +2808,9 @@ function updateView(v, dt) {
     v.zoom += (1 - v.zoom) * (1 - Math.exp(-3 * dt));
     v.aimZ = 1;
     const ctr = c.clone(); ctr.y += 1.15;
-    if (overReady && window.innerWidth > 760) { const sy = Math.sin(v.yaw), cy = Math.cos(v.yaw); ctr.x += cy * 1.6; ctr.z -= sy * 1.6; }  // shift the winner left of the card
-    v.target.lerp(ctr, 1 - Math.exp(-5 * dt)); v.dist += ((7 + span * 1.2) - v.dist) * (1 - Math.exp(-3 * dt));
+    if (STAGE.on) { ctr.copy(STAGE.mid); ctr.y += 1.0; }   // the winner and the dancer together, up on the 8-ball
+    if (window.innerWidth > 760) { const sy = Math.sin(v.yaw), cy = Math.cos(v.yaw); ctr.x += cy * 1.3; ctr.z -= sy * 1.3; }  // both left of the results card
+    v.target.lerp(ctr, 1 - Math.exp(-5 * dt)); v.dist += ((8 + span * 1.2) - v.dist) * (1 - Math.exp(-3 * dt));
     camPose(v, v.target, v.yaw, v.pitch, v.dist);
     v.sunAt = null; v.pivot = null;
     finishView(v, winners, dt);
@@ -3415,10 +3629,12 @@ function frame(now) {
       if (!p.alive) return;
       if (((state === 'countdown' || state === 'intro') && !p.remote) || paused) { p.vel.set(0, 0, 0); }
       animChar(p, paused ? 0 : dt, t);
-      if (state === 'over' && winners.includes(p)) dance(p, overT);
+      if (state === 'over' && winners.includes(p)) { if (p === winners[0]) makeItRain(p, overT, paused ? 0 : dt); else dance(p, overT); }
     });
   }
 
+  if (state === 'over' && winners[0]) danceGirl(winners[0], overT); else if (GIRL.shown || GIRL.root.visible) clearBills();
+  updateBills(paused ? 0 : dt, t);
   pitTick(paused ? 0 : dt, t);
   updateSmoke(paused ? 0 : dt);
   updateCameras(dt);
@@ -3430,7 +3646,7 @@ function frame(now) {
 }
 
 // read-only peek for automated browser checks
-window.__hn = { get state() { return state; }, get players() { return players; }, get corpses() { return corpses; } };
+window.__hn = { get state() { return state; }, get players() { return players; }, get corpses() { return corpses; }, get overT() { return overT; } };
 toLobby();
 requestAnimationFrame(frame);
 })();
