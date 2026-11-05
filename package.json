@@ -1,0 +1,9 @@
+{
+  "name": "hood-niggas-2",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hood Niggas 2 party game server",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}
